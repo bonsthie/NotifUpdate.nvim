@@ -1,28 +1,51 @@
 local Job = require('plenary.job')
+local notify = require("notify")
 
--- Define a function to check for updates
-local function check_for_config_update()
-    -- Ensure nvim-notify is loaded
-    vim.notify = require("notify")
+local update_keymap = vim.g.nvim_config_update_keymap or '<leader>uc'
 
+local function perform_update()
     Job:new({
         command = 'git',
-        args = {'remote', 'update'},
+        args = { 'pull' },
+        cwd = vim.fn.stdpath('config'),
+        on_exit = function(j)
+            local update_log = table.concat(j:result(), '\n')
+            notify("Configuration Updated: \n\n" .. update_log, "info", { title = "Neovim Config Status" })
+            notify("Config is up to date !!", "info", { title = "Neovim Config Status" })
+        end,
+    }):start()
+end
+
+local function notify_update_available()
+    Job:new({
+        command = 'git',
+        args = { 'log', '-1', '--pretty=%B' },
+        cwd = vim.fn.stdpath('config'),
+        on_exit = function(j)
+            local commit_message = table.concat(j:result(), '\n')
+            notify(
+                "New Nvim config update available: \n\n" .. commit_message .. "\n\nPress " .. update_keymap .. " to update.",
+                "warn",
+                { title = "Neovim Config Status" }
+            )
+        end,
+    }):start()
+end
+
+local function check_for_config_update()
+    Job:new({
+        command = 'git',
+        args = { 'remote', 'update' },
         cwd = vim.fn.stdpath('config'),
         on_exit = function()
-            -- Check the status of the local branch
             Job:new({
                 command = 'git',
-                args = {'status', '-uno'},
+                args = { 'status', '-uno' },
                 cwd = vim.fn.stdpath('config'),
-                on_exit = function(j, return_val)
+                on_exit = function(j)
                     local result = table.concat(j:result(), '\n')
                     if result:find('Your branch is behind') then
-						print ("Need update")
-                        vim.notify("Need update", "warn", { title = "Neovim Config Status" })
-                    else
-						print ("Up to date")
-                        vim.notify("Up to date", "info", { title = "Neovim Config Status" })
+                        notify_update_available()
                     end
                 end,
             }):start()
@@ -35,3 +58,5 @@ vim.api.nvim_create_autocmd("VimEnter", {
         check_for_config_update()
     end
 })
+
+vim.keymap.set('n', update_keymap, perform_update, { silent = true })
