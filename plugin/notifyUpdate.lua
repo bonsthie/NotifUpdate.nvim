@@ -1,5 +1,7 @@
 local Job = require('plenary.job')
-local notify = require("notify")
+local notify = require("notify").setup({
+	background_colour = "#b4637a",
+})
 
 local update_keymap = vim.g.nvim_config_update_keymap or '<leader>uc'
 
