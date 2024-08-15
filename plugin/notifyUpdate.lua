@@ -3,33 +3,35 @@ local notify = require("notify")
 
 local update_keymap = vim.g.nvim_config_update_keymap or '<leader>uc'
 
-local function perform_update()
+local function get_current_branch(callback)
     Job:new({
         command = 'git',
-        args = { 'pull' },
+        args = { 'rev-parse', '--abbrev-ref', 'HEAD' },
         cwd = vim.fn.stdpath('config'),
         on_exit = function(j)
-            local update_log = table.concat(j:result(), '\n')
-            notify("Configuration Updated: \n\n" .. update_log, "info", { title = "Neovim Config Status" })
-            notify("Config is up to date !!", "info", { title = "Neovim Config Status" })
+            local branch_name = table.concat(j:result(), '\n')
+            callback(branch_name)
         end,
     }):start()
 end
 
 local function notify_update_available()
-    Job:new({
-        command = 'git',
-        args = { 'log', '-1', '--pretty=%B' },
-        cwd = vim.fn.stdpath('config'),
-        on_exit = function(j)
-            local commit_message = table.concat(j:result(), '\n')
-            notify(
-                "New Nvim config update available: \n\n" .. commit_message .. "\n\nPress " .. update_keymap .. " to update.",
-                "warn",
-                { title = "Neovim Config Status" }
-            )
-        end,
-    }):start()
+    get_current_branch(function(branch_name)
+        Job:new({
+            command = 'git',
+            args = { 'log', 'origin/' .. branch_name, '-1', '--pretty=%B' },
+            cwd = vim.fn.stdpath('config'),
+            on_exit = function(j)
+                local commit_message = table.concat(j:result(), '\n')
+                notify(
+                    "New Nvim config update available: \n\n" ..
+                    commit_message .. "\n\nPress " .. update_keymap .. " to update.",
+                    "warn",
+                    { title = "Neovim Config Status" }
+                )
+            end,
+        }):start()
+    end)
 end
 
 local function check_for_config_update()
